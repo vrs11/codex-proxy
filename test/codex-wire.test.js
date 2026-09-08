@@ -94,13 +94,13 @@ test('Responses normalizes Codex error envelopes and supplies missing JSON media
   const app = await fixture(t, async (req, res) => {
     await readRequest(req);
     res.writeHead(++count === 1 ? 400 : 429);
-    res.end(count === 1 ? '{"detail":"Unsupported parameter: max_output_tokens"}' : standard);
+    res.end(count === 1 ? '{"detail":"Invalid input"}' : standard);
   });
   const client = new OpenAI({ baseURL: app.baseURL, apiKey: 'local', maxRetries: 0 });
-  await assert.rejects(client.responses.create({ model: 'test-model', input: 'x', max_output_tokens: 1 }), error => {
+  await assert.rejects(client.responses.create({ model: 'test-model', input: 'x' }), error => {
     assert.equal(error.status, 400);
     assert.equal(typeof error.error, 'object');
-    assert.equal(error.error.message, 'Unsupported parameter: max_output_tokens');
+    assert.equal(error.error.message, 'Invalid input');
     return true;
   });
   const response = await post(app.baseURL, '/responses', { model: 'test-model', input: 'x' });

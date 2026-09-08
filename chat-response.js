@@ -22,7 +22,7 @@ function finishReason(response) {
   return response.output.some(item => item.type === 'function_call') ? 'tool_calls' : 'stop';
 }
 
-export function responseToChat(response) {
+export function responseToChat(response, { legacyFunctions = false } = {}) {
   if (response.status === 'failed' || response.error) throw responseFailure(response);
   if (typeof response.id !== 'string' || typeof response.model !== 'string' || typeof response.created_at !== 'number'
     || !Array.isArray(response.output) || !['completed', 'incomplete'].includes(response.status)) throw new ProxyError('Upstream did not return a valid final response.', 502, 'invalid_upstream_response');
@@ -52,17 +52,22 @@ export function responseToChat(response) {
     } else throw new ProxyError(`Upstream output ${item.type} has no Chat Completions equivalent. Use /v1/responses.`, 502, 'unsupported_upstream_output');
   }
   const message = { role: 'assistant', content: content || (toolCalls.length || refusal ? null : ''), refusal: refusal || null };
-  if (toolCalls.length) message.tool_calls = toolCalls;
+  if (legacyFunctions && toolCalls.length > 1) throw new ProxyError('Legacy function calling cannot represent multiple calls in one response.', 502, 'unsupported_upstream_output');
+  if (toolCalls.length) {
+    if (legacyFunctions) message.function_call = toolCalls[0].function;
+    else message.tool_calls = toolCalls;
+  }
   if (annotations.length) message.annotations = annotations;
+  const finish = finishReason(response);
   return {
     id: response.id, object: 'chat.completion', created: response.created_at, model: response.model,
-    choices: [{ index: 0, message, finish_reason: finishReason(response), logprobs: null }],
+    choices: [{ index: 0, message, finish_reason: legacyFunctions && finish === 'tool_calls' ? 'function_call' : finish, logprobs: null }],
     ...(response.usage ? { usage: chatUsage(response.usage) } : {}),
     ...(response.service_tier ? { service_tier: response.service_tier } : {}),
   };
 }
 
-export async function streamChat(upstream, downstream, { includeUsage = false, maxOutputBytes = 64 * 1024 * 1024 } = {}) {
+export async function streamChat(upstream, downstream, { includeUsage = false, legacyFunctions = false, maxOutputBytes = 64 * 1024 * 1024 } = {}) {
   let identity;
   let roleSent = false;
   let text = '';
@@ -73,6 +78,12 @@ export async function streamChat(upstream, downstream, { includeUsage = false, m
 
   const chunk = async (delta, finish = null, usage) => {
     if (!identity) throw new ProxyError('Upstream emitted a delta before response.created.', 502, 'invalid_upstream_stream');
+    if (legacyFunctions && delta.tool_calls) {
+      if (delta.tool_calls.length !== 1 || delta.tool_calls[0].index !== 0) throw new ProxyError('Legacy function calling cannot represent multiple calls in one response.', 502, 'unsupported_upstream_output');
+      const { tool_calls, ...rest } = delta;
+      delta = { ...rest, function_call: tool_calls[0].function };
+    }
+    if (legacyFunctions && finish === 'tool_calls') finish = 'function_call';
     await writeSSE(downstream, {
       ...identity, object: 'chat.completion.chunk',
       choices: usage ? [] : [{ index: 0, delta, finish_reason: finish, logprobs: null }],

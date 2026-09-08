@@ -77,7 +77,7 @@ Codex errors using a `detail` field and missing JSON media types are now present
 
 ## Observed limits and scope
 
-The tested backend rejects `max_output_tokens` with HTTP 400. Its Chat Completions aliases, `max_tokens` and `max_completion_tokens`, consequently fail explicitly. They are never silently omitted. Incomplete-generation handling is covered by mocks; the live output-limit path is an unsupported-parameter error.
+The tested backend rejects `max_output_tokens` with HTTP 400. At the original release, its Chat Completions aliases, `max_tokens` and `max_completion_tokens`, consequently failed explicitly. The compatibility follow-up below changes that policy to omit unsupported settings. Incomplete-generation handling remains covered by mocks.
 
 Automated coverage additionally includes expiry/revocation, refresh races, byte preservation, compression, split SSE/UTF-8 boundaries, malformed and truncated streams, slow consumers, connection failures, timeouts, and process locking.
 
@@ -90,6 +90,17 @@ CI configuration is provided for Linux and macOS when this product folder is the
 ## Repeat the checks
 
 The network-binding follow-up adds `CODEX_PROXY_HOST=0.0.0.0` while retaining the loopback default. **54 automated tests and syntax checks passed** after this change, including connections through loopback and this machine's IPv4 interfaces, service-setting persistence, and continued rejection of unrelated Host headers and browser origins. The live and soak evidence above records the earlier localhost deployment; its stored source checksums describe that snapshot. Network exposure requires the access controls described in the README.
+
+## Compatibility follow-up — 2026-09-08
+
+The proxy now translates supported legacy function requests, history, regular replies and streaming deltas, and ignores known unsupported optional settings on both inference endpoints. GPT-5.6 reasoning effort `minimal` becomes `low`; service tier `auto` is omitted. The full behavior, including ignored token limits, stop strings and stored-history references, is documented in the README.
+
+- **61 automated tests passed.** Added coverage verifies request filtering, supported controls and message preservation, compressed-body header regeneration, legacy function round trips and streaming, modern-option precedence, generated call-ID collisions, and invalid upstream multiple-call replies to legacy callers.
+- **35 JavaScript files passed syntax checks**, with consistent runtime pins.
+- The updated isolated load check passed **3,642 requests with zero unexpected errors**, including a ten-second sustained phase and capacity/cancellation/recovery checks. Peak sampled RSS was 127,664,128 bytes. This short regression check does not repeat the original fifteen-minute soak.
+- After a graceful service restart, **18 live SDK checks passed with `gpt-5.6-sol`**, including regular and streaming responses, structured output, modern and legacy function calls, images, concurrent callers, cancellation, and ignored settings. Requests containing temperature, top-p, token limits and other formerly rejected options completed successfully.
+
+Current evidence is in [live results](test-results/live-latest.json) and [load results](test-results/load-latest.json). Earlier field-compatibility investigation reports record the behavior before this change. The tables at the top of this document describe the original release verification.
 
 With the server running, execute from this directory:
 

@@ -74,7 +74,7 @@ test('targeted validation repair preserves semantics and aggregates non-streamin
       res.end(gzipSync(encodeSSE(events(terminal))));
     }
   });
-  const original = { model: 'test-model', input: 'Original prompt', stream: false, metadata: { untouched: 'yes' } };
+  const original = { model: 'test-model', input: 'Original prompt', stream: false, client_metadata: { untouched: 'yes' } };
   const response = await post(app.baseURL, '/responses', original);
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('content-encoding'), null);
@@ -88,14 +88,14 @@ test('targeted validation repair preserves semantics and aggregates non-streamin
 
 test('unrelated upstream validation and rate-limit errors are preserved without retry', async t => {
   let count = 0;
-  const bytes = '{ "error": { "message": "Unsupported parameter: temperature", "param": "temperature" } }\n';
+  const bytes = '{ "error": { "message": "Unsupported parameter: future", "param": "future" } }\n';
   const app = await fixture(t, async (req, res) => {
     count++;
     await readRequest(req);
     res.writeHead(400, { 'content-type': 'application/json', 'retry-after': '12' });
     res.end(bytes);
   });
-  const response = await post(app.baseURL, '/responses', { model: 'test-model', input: 'hello', temperature: 0.1 });
+  const response = await post(app.baseURL, '/responses', { model: 'test-model', input: 'hello', future: true });
   assert.equal(response.status, 400);
   assert.equal(response.headers.get('retry-after'), '12');
   assert.equal(await response.text(), bytes);
@@ -177,9 +177,9 @@ test('bad requests, oversized bodies and unknown endpoints produce explicit loca
   let calls = 0;
   const app = await fixture(t, () => { calls++; }, { config: { maxBodyBytes: 1024 } });
   for (const [body, status, param] of [
-    [{ model: 'm', input: 'x', store: true }, 400, 'store'],
-    [{ model: 'm', input: 'x', previous_response_id: 'resp_old' }, 400, 'previous_response_id'],
-    [{ model: 'm', input: 'x', background: true }, 400, 'background'],
+    [{ model: 'm', input: 'x', store: 'true' }, 400, 'store'],
+    [{ input: 'x' }, 400, 'model'],
+    [{ model: 'm', input: 'x', stream: 'true' }, 400, 'stream'],
     [{ model: 'm', input: 'x'.repeat(2000) }, 413, null],
   ]) {
     const response = await post(app.baseURL, '/responses', body);

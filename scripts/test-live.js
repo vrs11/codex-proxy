@@ -211,15 +211,43 @@ await check('invalid model is returned as an upstream error', async () => {
   await assert.rejects(client.chat.completions.create({ model: 'codex-proxy-nonexistent-test-model', messages }), error => error.status >= 400 && error.status < 500 && Boolean(error.message));
 });
 
-await check('Codex output-limit rejection has an OpenAI error envelope', async () => {
-  const predicate = error => error.status === 400 && typeof error.error === 'object' && /Unsupported parameter: max_output_tokens/.test(error.error.message);
-  await assert.rejects(client.responses.create({ model, input: 'Reply OK.', store: false, max_output_tokens: 1 }), predicate);
-  await assert.rejects(client.chat.completions.create({ model, messages: [{ role: 'user', content: 'Reply OK.' }], max_completion_tokens: 1 }), predicate);
-  return { upstream_limit_support: false, http_status: 400 };
+await check('unsupported generation settings are ignored in both inference APIs', async () => {
+  const ignored = { temperature: 0.7, top_p: 0.9, metadata: { test: 'compatibility' }, user: 'synthetic-test',
+    safety_identifier: 'synthetic-test', prompt_cache_retention: '24h', service_tier: 'auto', store: true };
+  const response = await client.responses.create({ model, input: 'Reply with exactly OK.', max_output_tokens: 1, ...ignored });
+  assert.equal(response.output_text.trim(), 'OK');
+  const chat = await client.chat.completions.create({ model, messages: [{ role: 'user', content: 'Reply with exactly OK.' }],
+    max_tokens: 1, max_completion_tokens: 1, n: 2, stop: ['OK'], seed: 1, frequency_penalty: 0,
+    reasoning_effort: /^gpt-5\.6(?:-|$)/.test(model) ? 'minimal' : 'low', ...ignored });
+  assert.equal(chat.choices.length, 1);
+  assert.equal(chat.choices[0].message.content.trim(), 'OK');
+  return { unsupported_settings_ignored: true };
 });
 
-await check('unsupported options and invalid HTTP requests return clear errors', async () => {
-  for (const [params, param] of [[{ n: 2 }, 'n'], [{ store: true }, 'store'], [{ stop: ['END'] }, 'stop']]) {
+await check('legacy function calling supports regular replies, history and streaming', async () => {
+  const params = { model, messages: [{ role: 'user', content: toolPrompt }], functions: [chatTool.function], function_call: { name: 'add' } };
+  const first = await client.chat.completions.create(params);
+  const message = first.choices[0].message;
+  assert.equal(first.choices[0].finish_reason, 'function_call');
+  assert.equal(message.function_call.name, 'add');
+  assert.deepEqual(JSON.parse(message.function_call.arguments), { a: 2, b: 3 });
+  const second = await client.chat.completions.create({ ...params, function_call: 'none',
+    messages: [...params.messages, message, { role: 'function', name: 'add', content: '5' }] });
+  assert.equal(second.choices[0].message.content.trim(), '5');
+  const stream = await client.chat.completions.create({ ...params, stream: true });
+  let name = '', args = '', finish;
+  for await (const chunk of stream) {
+    name += chunk.choices[0]?.delta.function_call?.name ?? '';
+    args += chunk.choices[0]?.delta.function_call?.arguments ?? '';
+    finish = chunk.choices[0]?.finish_reason ?? finish;
+  }
+  assert.equal(name, 'add');
+  assert.deepEqual(JSON.parse(args), { a: 2, b: 3 });
+  assert.equal(finish, 'function_call');
+});
+
+await check('invalid request structure and HTTP requests return clear errors', async () => {
+  for (const [params, param] of [[{ messages: [] }, 'messages'], [{ stream: 'true' }, 'stream'], [{ tools: 'invalid' }, 'tools']]) {
     await assert.rejects(client.chat.completions.create({ model, messages, ...params }), error => error.status === 400 && error.param === param);
   }
   const invalidJson = await fetch(`${baseURL}/responses`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{broken', signal: AbortSignal.timeout(5000) });

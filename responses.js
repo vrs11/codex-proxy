@@ -4,17 +4,12 @@ export function validateResponseRequest(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw invalid('Expected a JSON object.', null, 'invalid_request');
   if (typeof body.model !== 'string' || !body.model.trim()) throw invalid('model must be a non-empty string.', 'model', 'invalid_request');
   if (body.stream !== undefined && typeof body.stream !== 'boolean') throw invalid('stream must be a boolean.', 'stream', 'invalid_request');
-  if (body.store !== undefined && typeof body.store !== 'boolean') throw invalid('store must be a boolean.', 'store', 'invalid_request');
-  if (body.store === true) throw invalid('Stored responses are not supported by this proxy. Send full conversation input with store:false.', 'store');
-  for (const key of ['previous_response_id', 'conversation']) {
-    if (body[key] != null) throw invalid(`${key} requires stored conversations, which this proxy does not maintain. Send full input instead.`, key);
-  }
-  if (body.background === true) throw invalid('Background generation is not supported by this proxy.', 'background');
+  if (body.store != null && typeof body.store !== 'boolean') throw invalid('store must be a boolean.', 'store', 'invalid_request');
 }
 
 // Only repair explicit validation rejections, before any generation was accepted.
-// The first attempt always retains the caller's bytes. A bounded retry loop in
-// server.js applies each repair at most once; no generation settings are dropped.
+// Unsupported options are removed before dispatch. A bounded retry loop in
+// server.js applies each of these structural repairs at most once.
 export function repairValidation(body, status, errorBytes, contentEncoding) {
   if (![400, 422].includes(status) || contentEncoding) return null;
   let error;

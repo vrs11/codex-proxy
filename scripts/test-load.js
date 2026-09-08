@@ -42,12 +42,12 @@ const upstream = http.createServer((req, res) => {
     upstreamActive++;
     report.upstream_peak = Math.max(report.upstream_peak, upstreamActive);
     res.once('close', () => { upstreamActive--; });
-    const kind = body.metadata.test_case;
+    const kind = req.headers['x-load-case'];
     if (kind === 'failure') return sendJson(res, 503, { error: { message: 'Simulated upstream outage.', code: 'mock_unavailable' } });
     if (kind === 'disconnect') return res.destroy();
     if (kind === 'timeout') return;
     const text = body.input[0].content[0].text;
-    const response = finalResponse({ id: `resp_${body.metadata.sequence}` });
+    const response = finalResponse({ id: `resp_${req.headers['x-load-sequence']}` });
     response.output[0].content[0].text = text;
     const wire = encodeSSE([
       { type: 'response.created', response: { ...response, output: [], status: 'in_progress' } },
@@ -65,7 +65,7 @@ const upstream = http.createServer((req, res) => {
       await delay(15);
       if (res.destroyed) return;
       // Alternate native, inferred, and compressed SSE representations.
-      const compressed = Number(body.metadata.sequence) % 3 === 0;
+      const compressed = Number(req.headers['x-load-sequence']) % 3 === 0;
       res.writeHead(200, compressed ? { 'content-encoding': 'gzip' } : {});
       res.end(compressed ? gzipSync(wire) : wire);
     }
@@ -98,12 +98,12 @@ async function call(overloadPhase) {
     : id % 29 === 0 ? 'failure' : id % 23 === 0 ? 'cancel' : 'normal';
   const streaming = kind === 'cancel' || id % 4 < 2;
   const controller = new AbortController();
-  const body = { model: 'test-model', stream: streaming, store: false, metadata: { test_case: kind, sequence: String(id) },
+  const body = { model: 'test-model', stream: streaming, store: false,
     ...(chat ? { messages: [{ role: 'user', content: text }] } : { instructions: '', input: [{ role: 'user', content: [{ type: 'input_text', text }] }] }) };
   const begin = performance.now();
   try {
     const response = await fetch(`${base}/v1/${chat ? 'chat/completions' : 'responses'}`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-load-case': kind, 'x-load-sequence': String(id) }, body: JSON.stringify(body),
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(5000)]),
     });
     if (response.status === 429) {

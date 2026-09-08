@@ -4,8 +4,9 @@ import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { pipeline, finished } from 'node:stream/promises';
 import { Readable } from 'node:stream';
-import { chatToResponses } from './chat-request.js';
+import { chatToResponses, usesLegacyFunctions } from './chat-request.js';
 import { responseToChat, streamChat } from './chat-response.js';
+import { normalizeResponseRequest } from './compatibility.js';
 import { ProxyError, errorBody, invalid } from './errors.js';
 import { repairValidation, validateResponseRequest } from './responses.js';
 import { normalizeResponsesStream } from './responses-stream.js';
@@ -240,9 +241,10 @@ export function createProxyServer(config, auth, { logger = quietLogger } = {}) {
       validateResponseRequest(body);
       const wantsStream = body.stream === true;
       const includeUsage = body.stream_options?.include_usage === true;
-      let outgoing = chat ? chatToResponses(body) : body;
-      let transformed = chat;
-      let bytes = chat ? Buffer.from(JSON.stringify(outgoing)) : original;
+      const legacyFunctions = chat && usesLegacyFunctions(body);
+      let outgoing = chat ? chatToResponses(body) : normalizeResponseRequest(body);
+      let transformed = chat || outgoing !== body;
+      let bytes = transformed ? Buffer.from(JSON.stringify(outgoing)) : original;
       const recovery = { refreshed: false };
       for (let attempt = 0; attempt < 5; attempt++) {
         controller.signal.throwIfAborted();
@@ -291,11 +293,11 @@ export function createProxyServer(config, auth, { logger = quietLogger } = {}) {
         ]);
         sseHeaders(response, upstream.headers);
         adaptedSSE = true;
-        await streamChat(stream, response, { includeUsage });
+        await streamChat(stream, response, { includeUsage, legacyFunctions });
         return;
       }
       const result = streaming ? await collectResponse(decodedStream(upstreamBody)) : await readJsonResponse(upstreamBody);
-      json(response, upstream.statusCode, chat ? responseToChat(result) : result, upstream.headers);
+      json(response, upstream.statusCode, chat ? responseToChat(result, { legacyFunctions }) : result, upstream.headers);
     } catch (error) {
       // pipeline may close the downstream before surfacing an adapter error.
       // Retain that explicit failure instead of labeling it a caller abort.

@@ -18,7 +18,7 @@ test('SDK Chat Completions maps images, ordered messages, tool round trips and s
       ],
       tools: [{ type: 'function', name: 'weather', description: 'Read weather', parameters: schema, strict: false }],
       tool_choice: { type: 'function', name: 'weather' }, parallel_tool_calls: true,
-      reasoning: { effort: 'low' }, max_output_tokens: 100,
+      reasoning: { effort: 'low' },
       text: { verbosity: 'low', format: { type: 'json_schema', name: 'place', schema, strict: true } },
     });
     res.writeHead(200, { 'content-type': 'text/event-stream', 'x-request-id': 'chat-request' });
@@ -161,19 +161,19 @@ test('incomplete generation maps to length, while failed and truncated streams a
   }
 });
 
-test('unsupported options and unknown nested fields are rejected, and upstream errors are normalized', async t => {
+test('malformed tool requests are rejected and upstream errors are normalized without retry', async t => {
   let count = 0;
   const app = await fixture(t, async (req, res) => {
     count++;
     const body = JSON.parse(await readRequest(req));
-    assert.equal(body.temperature, 0.7, 'generation settings must reach upstream');
-    sendJson(res, 400, { detail: 'Unsupported parameter: temperature' }, { 'x-request-id': 'failed-1' });
+    assert.equal(body.temperature, undefined);
+    sendJson(res, 400, { detail: 'Invalid tool schema' }, { 'x-request-id': 'failed-1' });
   });
   const params = { model: 'test-model', messages: [{ role: 'user', content: 'x' }] };
   for (const [extra, param] of [
-    [{ n: 2 }, 'n'], [{ stop: ['end'] }, 'stop'], [{ seed: 1 }, 'seed'],
-    [{ tools: [{ type: 'function', function: { name: 'x', custom: true } }] }, 'tools[0].function.custom'],
-    [{ messages: [{ role: 'user', content: 'x', name: 'unmapped' }] }, 'messages[0].name'],
+    [{ tools: 'invalid' }, 'tools'], [{ tool_choice: { type: 'function' } }, 'tool_choice'],
+    [{ messages: [{ role: 'tool', content: 'x' }] }, 'messages[0]'],
+    [{ messages: [{ role: 'function', name: 'missing', content: 'x' }] }, 'messages[0]'],
   ]) {
     const response = await post(app.baseURL, '/chat/completions', { ...params, ...extra });
     assert.equal(response.status, 400);
@@ -183,6 +183,6 @@ test('unsupported options and unknown nested fields are rejected, and upstream e
   const response = await post(app.baseURL, '/chat/completions', { ...params, temperature: 0.7 });
   assert.equal(response.status, 400);
   assert.equal(response.headers.get('x-request-id'), 'failed-1');
-  assert.equal((await response.json()).error.message, 'Unsupported parameter: temperature');
+  assert.equal((await response.json()).error.message, 'Invalid tool schema');
   assert.equal(count, 1);
 });
