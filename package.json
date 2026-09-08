@@ -1,0 +1,21 @@
+{
+  "name": "local-codex-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local OpenAI-compatible proxy using a persistent Codex device login",
+  "engines": { "node": ">=24.20.0 <25" },
+  "scripts": {
+    "start": "node scripts/run.js cli.js",
+    "login": "node scripts/run.js cli.js login",
+    "test": "node scripts/run.js --test test/*.test.js",
+    "smoke": "node scripts/run.js scripts/smoke.js",
+    "test:live": "node scripts/run.js scripts/test-live.js",
+    "test:load": "node scripts/run.js --expose-gc scripts/test-load.js",
+    "runtime:install": "node scripts/install-runtime.js",
+    "service": "node scripts/run.js scripts/service.js",
+    "test:service": "node scripts/run.js scripts/test-service.js",
+    "check": "node scripts/run.js scripts/check.js"
+  },
+  "devDependencies": { "openai": "7.10.0" }
+}

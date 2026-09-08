@@ -1,0 +1,12 @@
+node_modules/
+.env
+*.log
+.auth/
+coverage/
+test-results/
+auth.json
+.auth-*.tmp
+process.lock*
+service.json
+runtime/
+*.jsonl*
