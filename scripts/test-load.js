@@ -174,7 +174,7 @@ try {
   child = fork(join(root, 'scripts', 'load-worker.js'), [], { cwd: root, execArgv: ['--expose-gc', '--max-old-space-size=512'],
     env: { ...process.env, CODEX_PROXY_HOME: home, CODEX_PROXY_UPSTREAM_URL: `http://127.0.0.1:${upstream.address().port}`,
       CODEX_PROXY_AUTH_ISSUER: `http://127.0.0.1:${upstream.address().port}`,
-      CODEX_PROXY_PORT: '0', CODEX_PROXY_MAX_CONCURRENT: String(limit), CODEX_PROXY_MAX_CONNECTIONS: '64',
+      CODEX_PROXY_HOST: '127.0.0.1', CODEX_PROXY_PORT: '0', CODEX_PROXY_MAX_CONCURRENT: String(limit), CODEX_PROXY_MAX_CONNECTIONS: '64',
       CODEX_PROXY_REQUEST_TIMEOUT_MS: '1000', CODEX_PROXY_READINESS_INTERVAL_MS: '5000', CODEX_PROXY_SHUTDOWN_GRACE_MS: '1000',
       CODEX_PROXY_LOG_FILE: join(home, 'logs', 'proxy.jsonl'), CODEX_PROXY_LOG_MAX_BYTES: '65536', CODEX_PROXY_LOG_FILES: '2' },
     stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });

@@ -4,7 +4,7 @@ export const SERVICE_LABEL = 'local.codex-proxy';
 
 export function serviceEnvironment(config) {
   const names = {
-    port: 'PORT', home: 'HOME', issuer: 'AUTH_ISSUER', upstream: 'UPSTREAM_URL', clientVersion: 'CLIENT_VERSION',
+    host: 'HOST', port: 'PORT', home: 'HOME', issuer: 'AUTH_ISSUER', upstream: 'UPSTREAM_URL', clientVersion: 'CLIENT_VERSION',
     maxBodyBytes: 'MAX_BODY_BYTES', idleTimeoutMs: 'IDLE_TIMEOUT_MS', maxConcurrent: 'MAX_CONCURRENT',
     maxConnections: 'MAX_CONNECTIONS', requestTimeoutMs: 'REQUEST_TIMEOUT_MS', bodyTimeoutMs: 'BODY_TIMEOUT_MS',
     headersTimeoutMs: 'HEADERS_TIMEOUT_MS', upstreamHeadersTimeoutMs: 'UPSTREAM_HEADERS_TIMEOUT_MS',

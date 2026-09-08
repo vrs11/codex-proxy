@@ -26,7 +26,25 @@ npm start
 
 Credentials live in `~/.codex-proxy/auth.json`, separately from Codex's own login. The directory is mode `0700`, and the credential file is mode `0600`. Writes are atomic. One process may use a credential directory at a time, including the login and smoke commands. The process lock is released on normal shutdown; locks belonging to dead processes are reclaimed. Invalid locks require manual removal after confirming no proxy process is running.
 
-The server binds only to loopback. Local callers share this account's access; there is no separate caller authentication. Host validation and browser-origin rejection prevent unrelated websites from using the local account through a browser. Tokens and request/response bodies are not logged. Revoked or expired refresh credentials require another device login.
+The server binds to loopback by default. Callers share this account's access; there is no separate caller authentication. Host validation and browser-origin rejection prevent unrelated websites from using the account through a browser. Tokens and request/response bodies are not logged. Revoked or expired refresh credentials require another device login.
+
+## Listen on the network
+
+To bind all IPv4 interfaces:
+
+```bash
+CODEX_PROXY_HOST=0.0.0.0 npm start
+```
+
+For an installed macOS service, apply and persist the setting with:
+
+```bash
+CODEX_PROXY_HOST=0.0.0.0 npm run service -- install
+```
+
+Other machines use `http://<server-lan-ip>:8787/v1` as the API base URL. Local clients can continue using `http://127.0.0.1:8787/v1`. The bind address `0.0.0.0` is not a client destination. Host validation accepts the receiving interface's IP address; browser-origin requests remain disabled.
+
+**Network access shares your account:** anyone who can reach the port can make API requests. Restrict access to trusted clients using your firewall or an authenticated gateway. Requests use plain HTTP, so use a private network or TLS termination when transmitting over an untrusted network.
 
 ## Unattended operation on macOS
 
@@ -131,6 +149,7 @@ For converted model entries, `slug` becomes `id`, `object` is `model`, `owned_by
 
 | Environment variable | Default | Purpose |
 | --- | --- | --- |
+| `CODEX_PROXY_HOST` | `127.0.0.1` | Bind loopback, or `0.0.0.0` for all IPv4 interfaces. |
 | `CODEX_PROXY_PORT` | `8787` | Local port; `0` chooses a free port. |
 | `CODEX_PROXY_HOME` | `~/.codex-proxy` | Separate credentials and process lock. |
 | `CODEX_PROXY_MAX_BODY_BYTES` | `33554432` | Maximum incoming body, including decoded size. |

@@ -89,6 +89,8 @@ CI configuration is provided for Linux and macOS when this product folder is the
 
 ## Repeat the checks
 
+The network-binding follow-up adds `CODEX_PROXY_HOST=0.0.0.0` while retaining the loopback default. **54 automated tests and syntax checks passed** after this change, including connections through loopback and this machine's IPv4 interfaces, service-setting persistence, and continued rejection of unrelated Host headers and browser origins. The live and soak evidence above records the earlier localhost deployment; its stored source checksums describe that snapshot. Network exposure requires the access controls described in the README.
+
 With the server running, execute from this directory:
 
 ```bash

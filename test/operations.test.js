@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import { networkInterfaces } from 'node:os';
 import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import { readFile, readdir, stat } from 'node:fs/promises';
@@ -219,6 +220,36 @@ test('local service refuses browser origins and unrelated Host headers before us
     await readBody(response);
   }
   assert.equal(calls, 0);
+});
+
+test('bind configuration defaults to loopback and persists explicit wildcard binding in the service', () => {
+  assert.equal(loadConfig({}).host, '127.0.0.1');
+  const config = loadConfig({ CODEX_PROXY_HOST: '0.0.0.0' });
+  assert.equal(config.host, '0.0.0.0');
+  assert.equal(serviceEnvironment(config).CODEX_PROXY_HOST, '0.0.0.0');
+  for (const host of ['', 'unrelated.invalid', '0.0.0.0:8787']) {
+    assert.throws(() => loadConfig({ CODEX_PROXY_HOST: host }), /CODEX_PROXY_HOST must be/);
+  }
+});
+
+test('wildcard binding accepts loopback and its receiving interface while retaining Host and browser checks', async t => {
+  let calls = 0;
+  const app = await fixture(t, (_req, res) => { calls++; sendJson(res, 200, { models: [{ slug: 'test-model' }] }); },
+    { config: { host: '0.0.0.0' } });
+  assert.equal(app.server.address().address, '0.0.0.0');
+  const addresses = new Set(['127.0.0.1', ...Object.values(networkInterfaces()).flat()
+    .filter(value => value?.family === 'IPv4' && !value.internal).map(value => value.address)]);
+  for (const address of addresses) {
+    const response = await fetch(`http://${address}:${app.server.address().port}/v1/models`, { signal: AbortSignal.timeout(3000) });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).data[0].id, 'test-model');
+  }
+  for (const headers of [{ host: 'unrelated.invalid' }, { origin: 'https://example.invalid' }]) {
+    const response = await requestRaw(`${app.baseURL}/models`, { headers });
+    assert.equal(response.statusCode, 403);
+    await readBody(response);
+  }
+  assert.equal(calls, addresses.size);
 });
 
 test('service manifest pins a direct runtime, private logs, restart throttling and shutdown grace', () => {

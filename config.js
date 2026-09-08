@@ -21,7 +21,7 @@ function baseUrl(value, name) {
 
 export function loadConfig(env = process.env) {
   const config = {
-    host: '127.0.0.1',
+    host: env.CODEX_PROXY_HOST ?? '127.0.0.1',
     port: integer(env.CODEX_PROXY_PORT, 8787, 0, 65535, 'CODEX_PROXY_PORT'),
     home: resolve(env.CODEX_PROXY_HOME || `${homedir()}/.codex-proxy`),
     issuer: baseUrl(env.CODEX_PROXY_AUTH_ISSUER || 'https://auth.openai.com', 'CODEX_PROXY_AUTH_ISSUER'),
@@ -44,6 +44,7 @@ export function loadConfig(env = process.env) {
     logFiles: integer(env.CODEX_PROXY_LOG_FILES, 5, 1, 20, 'CODEX_PROXY_LOG_FILES'),
     nonInteractive: env.CODEX_PROXY_NON_INTERACTIVE === '1',
   };
+  if (!['127.0.0.1', '0.0.0.0'].includes(config.host)) throw new Error('CODEX_PROXY_HOST must be 127.0.0.1 or 0.0.0.0.');
   if (config.headersTimeoutMs > config.bodyTimeoutMs) throw new Error('CODEX_PROXY_HEADERS_TIMEOUT_MS must not exceed CODEX_PROXY_BODY_TIMEOUT_MS.');
   if (config.maxConnections < config.maxConcurrent + 4) throw new Error('CODEX_PROXY_MAX_CONNECTIONS must leave at least four connections beyond CODEX_PROXY_MAX_CONCURRENT for monitoring.');
   return config;

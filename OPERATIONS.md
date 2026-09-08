@@ -2,6 +2,8 @@
 
 The supported production deployment is one trusted user on localhost, with macOS launchd supervising the process. The proxy is an inference adapter for the Codex backend; it is not a public or multi-tenant OpenAI service. OpenAI-compatible features and explicit exclusions are listed in the README.
 
+Network binding is an explicit option: `CODEX_PROXY_HOST=0.0.0.0 npm run service -- install` persists an all-interface IPv4 listener. Connect through the server's LAN IP; local health checks continue using `127.0.0.1`. There is no caller authentication or built-in TLS, so restrict access to trusted clients or an authenticated TLS gateway. The existing localhost production validation does not establish a secured public deployment.
+
 ## Install and control
 
 Use Node 24.20.0 or a later Node 24 LTS patch. `npm run runtime:install` installs the pinned official runtime privately without changing the machine's global Node. `npm start` requires no npm runtime dependencies and performs device login if needed. Stop it with Ctrl-C before installing the service:

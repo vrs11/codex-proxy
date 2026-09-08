@@ -159,8 +159,13 @@ export function createProxyServer(config, auth, { logger = quietLogger } = {}) {
     try {
       if (!request.url.startsWith('/') || request.url.startsWith('//')) throw invalid('Invalid request target.', null, 'invalid_request');
       const port = server.address()?.port;
-      if (![`${config.host}:${port}`, `localhost:${port}`, ...(port === 80 ? [config.host, 'localhost'] : [])].includes(request.headers.host?.toLowerCase())) {
-        throw new ProxyError('Host must address the local proxy.', 403, 'invalid_host');
+      const hosts = ['127.0.0.1', 'localhost'];
+      // A wildcard bind is reached through a concrete interface address.
+      // Use the receiving socket's address, never an arbitrary caller Host.
+      if (config.host === '0.0.0.0') hosts.push(request.socket.localAddress);
+      const authorities = hosts.flatMap(host => port === 80 ? [host, `${host}:${port}`] : [`${host}:${port}`]);
+      if (!authorities.includes(request.headers.host?.toLowerCase())) {
+        throw new ProxyError('Host must match a proxy interface address or localhost.', 403, 'invalid_host');
       }
       if (request.headers.origin || request.headers['sec-fetch-site'] === 'cross-site') throw new ProxyError('Browser-origin requests are not enabled.', 403, 'browser_access_disabled');
       const url = new URL(request.url, 'http://localhost');

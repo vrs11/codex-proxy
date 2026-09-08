@@ -59,7 +59,7 @@ export async function fixture(t, handler, options = {}) {
     refresh: async () => {},
   };
   const server = createProxyServer(config, auth, { logger: options.logger });
-  server.listen(0, '127.0.0.1');
+  server.listen(0, config.host);
   await once(server, 'listening');
   t.after(() => server.shutdown());
   return { baseURL: `http://127.0.0.1:${server.address().port}/v1`, server, upstream };
