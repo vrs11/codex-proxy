@@ -102,6 +102,14 @@ The proxy now translates supported legacy function requests, history, regular re
 
 Current evidence is in [live results](test-results/live-latest.json) and [load results](test-results/load-latest.json). Earlier field-compatibility investigation reports record the behavior before this change. The tables at the top of this document describe the original release verification.
 
+## System-message and concurrency follow-up — 2026-09-08
+
+A live request with a system message and a function definition reproduced HTTP 400 `System messages are not allowed`. Changing only its role to developer succeeded. Both API endpoints now translate system input messages into developer messages while preserving their contents, order, and existing top-level instructions. The earlier live suite had not exercised system messages; it now includes that case.
+
+**63 automated tests and syntax checks passed.** New tests cover mixed instruction histories on both endpoints, regular and streamed function output, eight overlapping requests, and rejection of a ninth request while all eight slots are occupied.
+
+The installed local service was gracefully restarted with `CODEX_PROXY_MAX_CONCURRENT=8`, preserving its other saved settings. The code default remains four for other installations. Five simultaneous live requests with system messages and a harmless function definition all completed with HTTP 200 and distinct call IDs on `gpt-5.6-sol`, covering both APIs and both response modes. No function was executed. Evidence is in [the focused live report](test-results/system-message-live.json); this follow-up did not rerun the full earlier live suite. Readiness recovered and active requests returned to zero.
+
 With the server running, execute from this directory:
 
 ```bash

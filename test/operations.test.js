@@ -50,6 +50,34 @@ test('admission includes streaming lifetime; overload rejects immediately while 
   assert.equal(app.server.snapshot().counts.rejected, 1);
 });
 
+test('eight configured slots accept an overlapping burst and still reject excess requests', async t => {
+  let calls = 0;
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  t.after(release);
+  const app = await fixture(t, async (req, res) => {
+    await readRequest(req);
+    calls++;
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    res.write(': held\n\n');
+    await gate;
+    res.end(encodeSSE(events()));
+  }, { config: { maxConcurrent: 8 } });
+  const responses = await Promise.all(Array.from({ length: 8 }, (_, index) => post(app.baseURL,
+    index % 2 ? '/chat/completions' : '/responses', { model: 'm', stream: true,
+      ...(index % 2 ? { messages: [{ role: 'system', content: 'Reply briefly.' }, { role: 'user', content: 'Hello.' }] } : { input: 'Hello.' }) })));
+  assert.ok(responses.every(response => response.status === 200));
+  assert.equal(calls, 8);
+  assert.equal(app.server.snapshot().active, 8);
+  const excess = await post(app.baseURL, '/responses', { model: 'm', input: 'Hello.' });
+  assert.equal(excess.status, 429);
+  assert.equal((await excess.json()).error.code, 'proxy_overloaded');
+  release();
+  await Promise.all(responses.map(response => response.text()));
+  await until(() => app.server.snapshot().active === 0);
+  assert.equal(app.server.snapshot().counts.success, 8);
+});
+
 test('absolute deadline releases a request even when upstream sends continuous heartbeats', async t => {
   let closed = false;
   const app = await fixture(t, async (req, res) => {

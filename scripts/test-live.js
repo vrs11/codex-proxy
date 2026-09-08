@@ -246,6 +246,15 @@ await check('legacy function calling supports regular replies, history and strea
   assert.equal(finish, 'function_call');
 });
 
+await check('system messages are accepted through both inference APIs', async () => {
+  const chat = await client.chat.completions.create({ model,
+    messages: [{ role: 'system', content: 'Reply with exactly SYSTEM_OK.' }, { role: 'user', content: 'Hello.' }] });
+  assert.equal(chat.choices[0].message.content.trim(), 'SYSTEM_OK');
+  const response = await client.responses.create({ model, instructions: 'Follow the supplied instructions.',
+    input: [{ role: 'system', content: 'Reply with exactly SYSTEM_OK.' }, { role: 'user', content: 'Hello.' }] });
+  assert.equal(response.output_text.trim(), 'SYSTEM_OK');
+});
+
 await check('invalid request structure and HTTP requests return clear errors', async () => {
   for (const [params, param] of [[{ messages: [] }, 'messages'], [{ stream: 'true' }, 'stream'], [{ tools: 'invalid' }, 'tools']]) {
     await assert.rejects(client.chat.completions.create({ model, messages, ...params }), error => error.status === 400 && error.param === param);

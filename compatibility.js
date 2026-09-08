@@ -35,6 +35,13 @@ export function normalizeResponseRequest(body) {
   if (request.store === null) remove('store');
   if (request.service_tier === 'auto' || request.service_tier === null) remove('service_tier');
 
+  // Codex accepts developer instructions in input, but rejects the system role.
+  // Keep each message in place so separate instruction blocks retain their order.
+  const isSystemMessage = item => item?.role === 'system' && (item.type === undefined || item.type === 'message');
+  if (Array.isArray(request.input) && request.input.some(isSystemMessage)) {
+    set('input', request.input.map(item => isSystemMessage(item) ? { ...item, role: 'developer' } : item));
+  }
+
   if (request.reasoning_effort != null && request.reasoning == null) set('reasoning', { effort: request.reasoning_effort });
   remove('reasoning_effort');
   if (request.reasoning?.effort === 'minimal' && /^gpt-5\.6(?:-|$)/.test(request.model)) {

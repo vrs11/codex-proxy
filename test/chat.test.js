@@ -11,7 +11,7 @@ test('SDK Chat Completions maps images, ordered messages, tool round trips and s
     assert.deepEqual(JSON.parse(await readRequest(req)), {
       model: 'test-model', instructions: '', store: false, stream: true,
       input: [
-        { type: 'message', role: 'system', content: [{ type: 'input_text', text: 'Keep the original instructions.' }] },
+        { type: 'message', role: 'developer', content: [{ type: 'input_text', text: 'Keep the original instructions.' }] },
         { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Where is this?' }, { type: 'input_image', image_url: 'data:image/png;base64,AAA=', detail: 'low' }] },
         { type: 'function_call', call_id: 'call_1', name: 'weather', arguments: argumentsText },
         { type: 'function_call_output', call_id: 'call_1', output: '{ "degrees": 20 }' },

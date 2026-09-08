@@ -9,6 +9,49 @@ const fn = { name: 'weather', description: 'Read weather', parameters: schema };
 const argumentsText = '{ "city": "Madrid 🌍" }';
 const call = { type: 'function_call', id: 'fc_1', call_id: 'call_1', name: fn.name, arguments: argumentsText };
 
+test('system instructions become developer messages in order on both endpoints, including streaming tool calls', async t => {
+  const requests = [];
+  const final = finalResponse({ output: [call] });
+  const app = await fixture(t, async (req, res) => {
+    const body = JSON.parse(await readRequest(req));
+    requests.push(body);
+    assert.deepEqual(body.input.map(item => item.role), ['developer', 'user', 'developer', 'developer']);
+    res.writeHead(200, { 'content-type': 'text/event-stream' });
+    res.end(encodeSSE([{ type: 'response.completed', response: final }]));
+  });
+  const client = new OpenAI({ baseURL: app.baseURL, apiKey: 'local', maxRetries: 0 });
+  const messages = [
+    { role: 'system', content: 'Keep this instruction.\n🌍' },
+    { role: 'user', content: 'Read weather.' },
+    { role: 'system', content: [{ type: 'text', text: 'Keep this later instruction too.' }] },
+    { role: 'developer', content: 'Keep the existing developer message.' },
+  ];
+  for (const stream of [false, true]) {
+    const response = await client.chat.completions.create({ model: 'gpt-5.6-sol', messages, tools: [{ type: 'function', function: fn }], stream });
+    if (stream) {
+      const chunks = [];
+      for await (const chunk of response) chunks.push(chunk);
+      assert.equal(chunks.at(-1).choices[0].finish_reason, 'tool_calls');
+    } else assert.equal(response.choices[0].finish_reason, 'tool_calls');
+  }
+  assert.deepEqual(requests[0].input, [
+    { type: 'message', role: 'developer', content: [{ type: 'input_text', text: messages[0].content }] },
+    { type: 'message', role: 'user', content: [{ type: 'input_text', text: messages[1].content }] },
+    { type: 'message', role: 'developer', content: [{ type: 'input_text', text: messages[2].content[0].text }] },
+    { type: 'message', role: 'developer', content: [{ type: 'input_text', text: messages[3].content }] },
+  ]);
+  const input = [
+    { role: 'system', content: 'Native instruction.' },
+    { role: 'user', content: 'Read weather.' },
+    { type: 'message', role: 'system', content: [{ type: 'input_text', text: 'Native later instruction.', future: 'preserved' }] },
+    { type: 'message', role: 'developer', content: 'Native developer message.' },
+  ];
+  const response = await client.responses.create({ model: 'gpt-5.6-sol', instructions: 'Keep top-level instructions.', input });
+  assert.equal(response.status, 'completed');
+  assert.deepEqual(requests[2].input, input.map(item => item.role === 'system' ? { ...item, role: 'developer' } : item));
+  assert.equal(requests[2].instructions, 'Keep top-level instructions.');
+});
+
 test('Chat accepts common client defaults while preserving supported controls and message content', async t => {
   const app = await fixture(t, async (req, res) => {
     assert.deepEqual(JSON.parse(await readRequest(req)), {
