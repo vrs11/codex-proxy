@@ -123,3 +123,9 @@ npm run test:live
 The live suite uses the account for small generations and overwrites its JSON report. It does not stop the server or rotate credentials directly. The separate `npm run smoke` command owns and restarts its own server, so an existing server must be stopped before using that command.
 
 To repeat disruptive supervisor verification on an idle installed service, run `npm run test:service -- --restart`.
+
+## Reasoning-effort override follow-up — 2026-09-08
+
+`CODEX_PROXY_REASONING_EFFORT` can now force reasoning effort on both inference endpoints. **67 automated tests passed**, and syntax checks passed for all **35 JavaScript files**. New mock-upstream coverage verifies precedence over missing, native, alias, and conflicting caller settings; explicit `none`; preservation of reasoning summaries; regular and streaming replies; compressed request headers; and preservation through validation retries. Disabled or already-matching overrides retain compatible native request bytes. Configuration tests cover all six accepted values, invalid-value rejection, and persistence through service environment and launchd manifest generation.
+
+The installed service was gracefully restarted and returned to ready with concurrency **16** and the reasoning override **unset**. This follow-up used local mocks to verify the override; it did not repeat live generations or the earlier load and soak runs.

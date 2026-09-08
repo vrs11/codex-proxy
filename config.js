@@ -28,6 +28,7 @@ export function loadConfig(env = process.env) {
     upstream: baseUrl(env.CODEX_PROXY_UPSTREAM_URL || 'https://chatgpt.com/backend-api/codex', 'CODEX_PROXY_UPSTREAM_URL'),
     clientId: 'app_EMoamEEZ73f0CkXaXp7hrann',
     clientVersion: env.CODEX_PROXY_CLIENT_VERSION || '0.153.4',
+    reasoningEffortOverride: env.CODEX_PROXY_REASONING_EFFORT || null,
     maxBodyBytes: integer(env.CODEX_PROXY_MAX_BODY_BYTES, 32 * 1024 * 1024, 1024, 1024 ** 3, 'CODEX_PROXY_MAX_BODY_BYTES'),
     idleTimeoutMs: integer(env.CODEX_PROXY_IDLE_TIMEOUT_MS, 300_000, 1000, 3600_000, 'CODEX_PROXY_IDLE_TIMEOUT_MS'),
     maxConcurrent: integer(env.CODEX_PROXY_MAX_CONCURRENT, 4, 1, 64, 'CODEX_PROXY_MAX_CONCURRENT'),
@@ -45,6 +46,9 @@ export function loadConfig(env = process.env) {
     nonInteractive: env.CODEX_PROXY_NON_INTERACTIVE === '1',
   };
   if (!['127.0.0.1', '0.0.0.0'].includes(config.host)) throw new Error('CODEX_PROXY_HOST must be 127.0.0.1 or 0.0.0.0.');
+  if (config.reasoningEffortOverride !== null && !['none', 'low', 'medium', 'high', 'xhigh', 'max'].includes(config.reasoningEffortOverride)) {
+    throw new Error('CODEX_PROXY_REASONING_EFFORT must be none, low, medium, high, xhigh, or max; leave it empty to disable the override.');
+  }
   if (config.headersTimeoutMs > config.bodyTimeoutMs) throw new Error('CODEX_PROXY_HEADERS_TIMEOUT_MS must not exceed CODEX_PROXY_BODY_TIMEOUT_MS.');
   if (config.maxConnections < config.maxConcurrent + 4) throw new Error('CODEX_PROXY_MAX_CONNECTIONS must leave at least four connections beyond CODEX_PROXY_MAX_CONCURRENT for monitoring.');
   return config;

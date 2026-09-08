@@ -18,7 +18,7 @@ export function responseFormat(format) {
   throw invalid('Unsupported response_format.', 'response_format');
 }
 
-export function normalizeResponseRequest(body) {
+export function normalizeResponseRequest(body, { reasoningEffortOverride } = {}) {
   // Copy only on change so already-compatible native requests keep their bytes.
   let request = body;
   const set = (key, value) => {
@@ -44,6 +44,9 @@ export function normalizeResponseRequest(body) {
 
   if (request.reasoning_effort != null && request.reasoning == null) set('reasoning', { effort: request.reasoning_effort });
   remove('reasoning_effort');
+  if (reasoningEffortOverride != null && request.reasoning?.effort !== reasoningEffortOverride) {
+    set('reasoning', { ...request.reasoning, effort: reasoningEffortOverride });
+  }
   if (request.reasoning?.effort === 'minimal' && /^gpt-5\.6(?:-|$)/.test(request.model)) {
     set('reasoning', { ...request.reasoning, effort: 'low' });
   }

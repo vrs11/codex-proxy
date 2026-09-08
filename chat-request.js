@@ -74,7 +74,7 @@ function messagesToInput(messages) {
   });
 }
 
-export function chatToResponses(body) {
+export function chatToResponses(body, options) {
   if (body.stream === true && body.stream_options != null) {
     if (typeof body.stream_options !== 'object' || Array.isArray(body.stream_options)) throw invalid('stream_options must be an object.', 'stream_options', 'invalid_request');
     if (body.stream_options.include_usage !== undefined && typeof body.stream_options.include_usage !== 'boolean') throw invalid('include_usage must be a boolean.', 'stream_options.include_usage', 'invalid_request');
@@ -114,5 +114,5 @@ export function chatToResponses(body) {
   }
   if (body.response_format != null) request.text = { ...request.text, format: responseFormat(body.response_format) };
   if (usesLegacyFunctions(body)) request.parallel_tool_calls = false;
-  return normalizeResponseRequest(request);
+  return normalizeResponseRequest(request, options);
 }

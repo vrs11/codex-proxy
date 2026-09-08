@@ -139,6 +139,8 @@ The proxy does not retry successful generations, transport failures, rate limits
 
 **Chat Completions mapping:** Supports system/developer/user/assistant messages, text, user image URLs/data URLs, function tools and tool-result messages, tool choice, parallel tool calls, structured output, reasoning effort, and verbosity. `reasoning_effort` becomes `reasoning.effort`, `verbosity` becomes `text.verbosity`, and `response_format` becomes `text.format`. These control aliases are also accepted on the Responses endpoint; native Responses controls take precedence there. Chat callers may also supply native `reasoning` and `text` controls; explicit Chat control aliases take precedence. Function argument strings remain unchanged. Tool schema strictness defaults to `false`, matching Chat Completions.
 
+`CODEX_PROXY_REASONING_EFFORT` forces one reasoning effort for all Chat Completions and Responses requests, including streaming. It overrides both `reasoning_effort` and `reasoning.effort`, supplies the value when omitted, and preserves other reasoning options such as `summary`. Accepted values are `none`, `low`, `medium`, `high`, `xhigh`, and `max`; choose a value supported by the requested model. Unset or empty disables the override; `none` explicitly requests no reasoning. Invalid settings stop startup with a configuration error.
+
 System messages are translated to `developer` messages on both inference endpoints because the Codex backend rejects the `system` role. Their content and position in the input are preserved, along with existing developer messages and native top-level instructions.
 
 Legacy `functions` and `function_call` are translated into function tools and tool choice. Legacy assistant function calls and `role:"function"` results are paired with generated call IDs. Replies use the legacy `message.function_call`, streamed `delta.function_call`, and `finish_reason:"function_call"` format when the caller uses legacy function options. Parallel calls are disabled in that mode. Modern `tools` and `tool_choice` take precedence over their legacy counterparts.
@@ -160,6 +162,7 @@ For converted model entries, `slug` becomes `id`, `object` is `model`, `owned_by
 | `CODEX_PROXY_HOST` | `127.0.0.1` | Bind loopback, or `0.0.0.0` for all IPv4 interfaces. |
 | `CODEX_PROXY_PORT` | `8787` | Local port; `0` chooses a free port. |
 | `CODEX_PROXY_HOME` | `~/.codex-proxy` | Separate credentials and process lock. |
+| `CODEX_PROXY_REASONING_EFFORT` | unset | Force reasoning effort on every inference request, overriding caller values. |
 | `CODEX_PROXY_MAX_BODY_BYTES` | `33554432` | Maximum incoming body, including decoded size. |
 | `CODEX_PROXY_IDLE_TIMEOUT_MS` | `300000` | Upstream socket inactivity timeout. |
 | `CODEX_PROXY_MAX_CONCURRENT` | `4` | Active API request limit; excess callers receive 429. |
@@ -180,6 +183,14 @@ For converted model entries, `slug` becomes `id`, `object` is `model`, `owned_by
 | `CODEX_PROXY_AUTH_ISSUER` | `https://auth.openai.com` | Trusted authentication issuer. |
 
 URL overrides are for trusted deployments or local tests: your credentials are sent to them. HTTPS is required except for loopback HTTP. Standard Node.js TLS configuration, such as `NODE_EXTRA_CA_CERTS`, applies. No `.env` loader is used; export variables in your shell or service configuration.
+
+For example, start a foreground proxy with a forced reasoning effort:
+
+```bash
+CODEX_PROXY_REASONING_EFFORT=high npm start
+```
+
+For the managed service, set this variable alongside your other desired `CODEX_PROXY_*` settings and run `npm run service -- install`. Installation snapshots the supplied environment, so include existing settings you want to retain, such as concurrency and host binding. A plain `restart` uses the previously installed settings. To remove the override, reinstall with `CODEX_PROXY_REASONING_EFFORT=` and the other settings retained.
 
 Local HTTP headers are limited to 16 KiB. SSE frames/events are limited to 16 MiB; accumulated output items, adapted Chat output, and buffered upstream responses are limited to 64 MiB. Streaming proceeds event by event without waiting for the whole response. The managed runtime uses a 1 GiB V8 old-space ceiling; Buffers and native allocations sit outside that ceiling, so request/body/concurrency limits still matter. Increase capacity only after testing your intended payload sizes and concurrency.
 

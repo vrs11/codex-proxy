@@ -280,6 +280,29 @@ test('wildcard binding accepts loopback and its receiving interface while retain
   assert.equal(calls, addresses.size);
 });
 
+test('reasoning effort configuration validates values and survives service installation and reload', () => {
+  for (const value of [undefined, '']) {
+    const config = loadConfig({ CODEX_PROXY_REASONING_EFFORT: value });
+    assert.equal(config.reasoningEffortOverride, null);
+    assert.equal(Object.hasOwn(serviceEnvironment(config), 'CODEX_PROXY_REASONING_EFFORT'), false);
+    assert.equal(loadConfig(serviceEnvironment(config)).reasoningEffortOverride, null);
+  }
+  for (const value of ['none', 'low', 'medium', 'high', 'xhigh', 'max']) {
+    const config = loadConfig({ CODEX_PROXY_REASONING_EFFORT: value, CODEX_PROXY_MAX_CONCURRENT: '16' });
+    assert.equal(config.reasoningEffortOverride, value);
+    const installed = serviceEnvironment(config);
+    assert.equal(installed.CODEX_PROXY_REASONING_EFFORT, value);
+    const reloaded = loadConfig(installed);
+    assert.equal(reloaded.reasoningEffortOverride, value);
+    assert.equal(reloaded.maxConcurrent, 16);
+    assert.ok(launchdPlist({ node: '/opt/node/bin/node', directory: '/tmp/proxy', config })
+      .includes(`<key>CODEX_PROXY_REASONING_EFFORT</key><string>${value}</string>`));
+  }
+  for (const value of ['minimal', 'HIGH', 'auto', 'off', ' high ', 'invalid']) {
+    assert.throws(() => loadConfig({ CODEX_PROXY_REASONING_EFFORT: value }), /CODEX_PROXY_REASONING_EFFORT must be/);
+  }
+});
+
 test('service manifest pins a direct runtime, private logs, restart throttling and shutdown grace', () => {
   const config = { ...loadConfig({}), home: '/tmp/a & b', shutdownGraceMs: 35_000 };
   const plist = launchdPlist({ node: '/opt/node/bin/node', directory: '/tmp/code & proxy', config });

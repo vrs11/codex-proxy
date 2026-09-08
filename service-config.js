@@ -13,6 +13,7 @@ export function serviceEnvironment(config) {
   };
   return { NODE_ENV: 'production',
     ...Object.fromEntries(Object.entries(names).map(([key, name]) => [`CODEX_PROXY_${name}`, String(config[key])])),
+    ...(config.reasoningEffortOverride ? { CODEX_PROXY_REASONING_EFFORT: config.reasoningEffortOverride } : {}),
     CODEX_PROXY_LOG_FILE: config.logFile || join(config.home, 'logs', 'proxy.jsonl'),
     CODEX_PROXY_NON_INTERACTIVE: '1',
   };

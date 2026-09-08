@@ -242,7 +242,7 @@ export function createProxyServer(config, auth, { logger = quietLogger } = {}) {
       const wantsStream = body.stream === true;
       const includeUsage = body.stream_options?.include_usage === true;
       const legacyFunctions = chat && usesLegacyFunctions(body);
-      let outgoing = chat ? chatToResponses(body) : normalizeResponseRequest(body);
+      let outgoing = chat ? chatToResponses(body, config) : normalizeResponseRequest(body, config);
       let transformed = chat || outgoing !== body;
       let bytes = transformed ? Buffer.from(JSON.stringify(outgoing)) : original;
       const recovery = { refreshed: false };

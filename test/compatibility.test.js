@@ -9,6 +9,87 @@ const fn = { name: 'weather', description: 'Read weather', parameters: schema };
 const argumentsText = '{ "city": "Madrid 🌍" }';
 const call = { type: 'function_call', id: 'fc_1', call_id: 'call_1', name: fn.name, arguments: argumentsText };
 
+test('configured reasoning effort overrides missing and conflicting caller values on both APIs and response modes', async t => {
+  for (const effort of ['high', 'none']) {
+    const requests = [];
+    const app = await fixture(t, async (req, res) => {
+      const body = JSON.parse(await readRequest(req));
+      requests.push(body);
+      assert.equal(body.model, 'gpt-5.6-sol');
+      assert.equal(body.reasoning.effort, effort);
+      assert.equal(Object.hasOwn(body, 'reasoning_effort'), false);
+      res.writeHead(200, { 'content-type': 'text/event-stream' });
+      res.end(encodeSSE([{ type: 'response.completed', response: finalResponse() }]));
+    }, { config: { reasoningEffortOverride: effort } });
+    for (const path of ['/chat/completions', '/responses']) {
+      for (const stream of [false, true]) {
+        for (const controls of [
+          {},
+          { reasoning_effort: 'minimal' },
+          { reasoning: { effort: 'low', summary: 'auto' } },
+          { reasoning_effort: 'invalid', reasoning: { effort: 'max', summary: 'auto' } },
+        ]) {
+          const input = path === '/responses' ? { input: [{ role: 'user', content: 'Keep this text.' }] }
+            : { messages: [{ role: 'user', content: 'Keep this text.' }] };
+          const response = await post(app.baseURL, path, { model: 'gpt-5.6-sol', stream, ...input, ...controls });
+          assert.equal(response.status, 200);
+          if (stream) assert.match(await response.text(), path === '/responses' ? /response.completed/ : /\[DONE\]/);
+          else {
+            const result = await response.json();
+            assert.equal(path === '/responses' ? result.status : result.choices[0].message.content,
+              path === '/responses' ? 'completed' : 'Hello 🌍');
+          }
+          assert.deepEqual(requests.at(-1).reasoning, { ...controls.reasoning, effort });
+        }
+      }
+    }
+    assert.equal(requests.length, 16);
+  }
+});
+
+test('reasoning override rewrites compressed Responses headers and survives validation repair', async t => {
+  const requests = [];
+  const app = await fixture(t, async (req, res) => {
+    const bytes = await readRequest(req);
+    assert.equal(req.headers['content-encoding'], undefined);
+    assert.equal(Number(req.headers['content-length']), bytes.length);
+    const body = JSON.parse(bytes);
+    requests.push(body);
+    assert.deepEqual(body.reasoning, { effort: 'max', summary: 'auto' });
+    if (body.instructions === undefined) sendJson(res, 400, { detail: 'Instructions are required' });
+    else sendJson(res, 200, finalResponse());
+  }, { config: { reasoningEffortOverride: 'max' } });
+  const original = { model: 'gpt-5.6-sol', input: [{ role: 'user', content: 'Keep this text.' }],
+    reasoning: { effort: 'low', summary: 'auto' }, future: { preserved: true } };
+  const response = await fetch(`${app.baseURL}/responses`, { method: 'POST',
+    headers: { 'content-type': 'application/json', 'content-encoding': 'gzip' }, body: gzipSync(JSON.stringify(original)) });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), finalResponse());
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1], { ...original, reasoning: { effort: 'max', summary: 'auto' }, instructions: '' });
+});
+
+test('disabled or matching overrides preserve compatible native request bytes and caller reasoning', async t => {
+  const cases = [
+    { override: null },
+    { override: null, reasoning: { effort: 'high', summary: 'auto' } },
+    { override: 'high', reasoning: { effort: 'high', summary: 'auto' } },
+  ];
+  for (const { override, reasoning } of cases) {
+    const original = { model: 'gpt-5.6-sol', input: 'Keep this text.', ...(reasoning ? { reasoning } : {}) };
+    const bytes = gzipSync(Buffer.from(`${JSON.stringify(original, null, 2)}\n`));
+    const app = await fixture(t, async (req, res) => {
+      assert.equal(req.headers['content-encoding'], 'gzip');
+      assert.deepEqual(await readRequest(req), bytes);
+      sendJson(res, 200, finalResponse());
+    }, { config: { reasoningEffortOverride: override } });
+    const response = await fetch(`${app.baseURL}/responses`, { method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-encoding': 'gzip' }, body: bytes });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), finalResponse());
+  }
+});
+
 test('system instructions become developer messages in order on both endpoints, including streaming tool calls', async t => {
   const requests = [];
   const final = finalResponse({ output: [call] });
