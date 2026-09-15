@@ -17,5 +17,5 @@
     "test:service": "node scripts/run.js scripts/test-service.js",
     "check": "node scripts/run.js scripts/check.js"
   },
-  "devDependencies": { "openai": "7.10.0" }
+  "devDependencies": { "openai": "7.15.0" }
 }
